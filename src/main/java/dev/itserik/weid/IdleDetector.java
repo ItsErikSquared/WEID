@@ -11,20 +11,16 @@ import java.util.logging.Logger;
 
 public class IdleDetector implements NativeKeyListener, NativeMouseInputListener, NativeMouseWheelListener, NativeMouseMotionListener {
 
-    enum State {
-        ONLINE, IDLE, AWAY
-    }
-
     /**
-      * IDLE & AWAY
-      * If the returned Idle time is between 0 and idle, the state will return ONLINE
-      * If the returned Idle time is between idle and away, the state will return IDLE
-      * If the returned Idle time is between away and Infinity, the state will return AWAY
-      *
-      * If Online - Do nothing
-      * If Idle   - Minimize & Hide taskbar
-      * If Away   - On next movement, lock the computer
-      */
+     * IDLE & AWAY
+     * If the returned Idle time is between 0 and idle, the state will return ONLINE
+     * If the returned Idle time is between idle and away, the state will return IDLE
+     * If the returned Idle time is between away and Infinity, the state will return AWAY
+     * <p>
+     * If Online - Do nothing
+     * If Idle   - Minimize & Hide taskbar
+     * If Away   - On next movement, lock the computer
+     */
     public long lastInput = System.currentTimeMillis();
     public long idle;
     public long away;
@@ -48,7 +44,17 @@ public class IdleDetector implements NativeKeyListener, NativeMouseInputListener
     }
 
     public State getCurrentState() {
-        return System.currentTimeMillis() - lastInput < idle ? State.ONLINE : System.currentTimeMillis() - lastInput < away ? State.IDLE : State.AWAY;
+        long current = System.currentTimeMillis();
+        if (current - lastInput < idle) {
+            return State.ONLINE;
+        }
+        if (away == -1) {
+            return State.IDLE;
+        }
+        if (current - lastInput < away) {
+            return State.IDLE;
+        }
+        return State.AWAY;
     }
 
     public void now() {
@@ -98,6 +104,10 @@ public class IdleDetector implements NativeKeyListener, NativeMouseInputListener
     @Override
     public void nativeMouseWheelMoved(NativeMouseWheelEvent nativeMouseWheelEvent) {
         now();
+    }
+
+    enum State {
+        ONLINE, IDLE, AWAY
     }
 
 }
