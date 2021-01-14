@@ -1,0 +1,3 @@
+Main-Class: dev.itserik.weid.WEID
+Created-By: ItsErik (dab)
+Manifest-Version: 1.0
