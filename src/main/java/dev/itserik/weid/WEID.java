@@ -28,7 +28,6 @@ public class WEID {
      * Handles checking each state.
      */
     public static void main(String[] args) {
-        OnlyOne.checkIfRunning();
         loadProperties(false);
         makeTray();
         idleDetector.start();
