@@ -2,18 +2,16 @@ package dev.itserik.weid;
 
 import dev.itserik.weid.jna.User32;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.Properties;
-
-import static com.sun.deploy.uitoolkit.impl.awt.Applet2ImageFactory.createImage;
 
 public class WEID {
 
@@ -22,6 +20,7 @@ public class WEID {
     private static final Properties props = new Properties();
     private static Robot robot;
     private static boolean windowsMinimized = false;
+    private static boolean paused = false;
     private static IdleDetector.State oldState;
 
     /**
@@ -29,6 +28,7 @@ public class WEID {
      * Handles checking each state.
      */
     public static void main(String[] args) {
+        OnlyOne.checkIfRunning();
         loadProperties(false);
         makeTray();
         idleDetector.start();
@@ -41,23 +41,28 @@ public class WEID {
         }
 
         while (true) {
-            System.out.println("Old State: " + oldState + " - New State: " + idleDetector.getCurrentState() + " - minimized: " + windowsMinimized);
-            if ((idleDetector.getCurrentState() == IdleDetector.State.ONLINE && windowsMinimized) ||
-                    (!idleDetector.getCurrentState().equals(IdleDetector.State.ONLINE) && !windowsMinimized)) {
-                toggleWindows();
-            }
-            if (oldState == IdleDetector.State.AWAY && idleDetector.getCurrentState() == IdleDetector.State.ONLINE) {
-                try {
-                    Runtime.getRuntime().exec(System.getenv("windir") + File.separator + "System32" + File.separator + "rundll32.exe user32.dll,LockWorkStation");
-                } catch (IOException ex) {
-                    showAlert("Cannot LockWorkstation: " + ex.getMessage());
-                    ex.printStackTrace();
+            if (paused) {
+                System.out.println("Paused: true");
+                return;
+            } else {
+                System.out.println("Old State: " + oldState + " - New State: " + idleDetector.getCurrentState() + " - minimized: " + windowsMinimized);
+                if ((idleDetector.getCurrentState() == IdleDetector.State.ONLINE && windowsMinimized) ||
+                        (!idleDetector.getCurrentState().equals(IdleDetector.State.ONLINE) && !windowsMinimized)) {
+                    toggleWindows();
                 }
+                if (oldState == IdleDetector.State.AWAY && idleDetector.getCurrentState() == IdleDetector.State.ONLINE) {
+                    try {
+                        Runtime.getRuntime().exec(System.getenv("windir") + File.separator + "System32" + File.separator + "rundll32.exe user32.dll,LockWorkStation");
+                    } catch (IOException ex) {
+                        showAlert("Cannot LockWorkstation: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                }
+                oldState = idleDetector.getCurrentState();
             }
 
-            oldState = idleDetector.getCurrentState();
             try {
-                Thread.sleep(50);
+                Thread.sleep(250);
             } catch (InterruptedException e) {
                 showAlert("InterruptedException: " + e.getMessage());
                 e.printStackTrace();
@@ -107,6 +112,7 @@ public class WEID {
                         "When it reloads, a popup will appear letting you know it is done!");
             }
 
+            props.setProperty("Paused", String.valueOf(false));
             props.setProperty("IdleTime", String.valueOf(300));
             props.setProperty("AwayTime", String.valueOf(300));
             props.setProperty("HideTaskbar", String.valueOf(true));
@@ -116,13 +122,13 @@ public class WEID {
             long idle = Long.parseLong(props.getProperty("IdleTime")) * 1000;
             long away = Long.parseLong(props.getProperty("AwayTime")) * 1000;
 
-            if(idle < 15) {
+            if (idle < 15) {
                 showAlert("Oops!\n\nYour IdleTime cannot be less than 15 seconds!\nIt has been reset to 300s (5m)...");
                 props.setProperty("IdleTime", String.valueOf(300));
                 idle = 300;
             }
 
-            if(away < 60) {
+            if (away < 60) {
                 showAlert("Oops!\n\nYour AwayTime cannot be less than 60 seconds!\nIt has been reset to 300s (5m)...");
                 props.setProperty("AwayTime", String.valueOf(300));
                 away = 300;
@@ -131,6 +137,7 @@ public class WEID {
             idleDetector.idle = idle;
             idleDetector.away = idle + away;
             idleDetector.hideTaskbar = Boolean.parseBoolean(props.getProperty("HideTaskbar"));
+            paused = Boolean.parseBoolean(props.getProperty("Paused"));
 
             if (reload) {
                 showAlert("WEID has been reloaded.");
@@ -155,25 +162,38 @@ public class WEID {
         try {
             PopupMenu popupMenu = new PopupMenu();
             TrayIcon trayIcon = new TrayIcon(
-                    createImage(new URL("https://www.buttonworks.com/assets/images/stopweid.jpg")),
+                    ImageIO.read(WEID.class.getResource("/res/WEID.png")),
                     "WEID - Wallpaper Engine Extension");
+            trayIcon.setImageAutoSize(true);
 
+
+            CheckboxMenuItem miPause = new CheckboxMenuItem("Pause App", Boolean.parseBoolean(props.getProperty("Paused")));
             MenuItem miReload = new MenuItem("Reload Config");
             MenuItem miPreview = new MenuItem("Preview");
             MenuItem miStop = new MenuItem("Stop Application");
 
+            miPause.addItemListener(e -> {
+                boolean paused = e.getStateChange() == ItemEvent.SELECTED;
+                props.setProperty("Paused", String.valueOf(paused));
+                WEID.paused = paused;
+                if (!paused) {
+                    idleDetector.lastInput = System.currentTimeMillis();
+                }
+            });
             miReload.addActionListener(e -> loadProperties(true));
             miPreview.addActionListener(e -> idleDetector.lastInput = System.currentTimeMillis() - idleDetector.idle);
             miStop.addActionListener(e -> System.exit(0));
 
+            popupMenu.add(miPause);
             popupMenu.add(miReload);
             popupMenu.add(miPreview);
+            popupMenu.addSeparator();
             popupMenu.add(miStop);
             trayIcon.addActionListener(e -> loadProperties(true));
             trayIcon.setPopupMenu(popupMenu);
 
             SystemTray.getSystemTray().add(trayIcon);
-        } catch (AWTException | MalformedURLException e) {
+        } catch (AWTException | IOException e) {
             showAlert("Error while building SystemTray: " + e.getMessage());
             e.printStackTrace();
         }
