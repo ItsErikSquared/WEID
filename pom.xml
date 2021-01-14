@@ -6,8 +6,25 @@
 
     <groupId>dev.itserik</groupId>
     <artifactId>WEID</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>Beta1</version>
     <packaging>jar</packaging>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.4</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>dev.itserik.weid.WEID</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
